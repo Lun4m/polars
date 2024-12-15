@@ -150,6 +150,7 @@ impl<R: MmapBytesReader> CsvReader<R> {
             self.options.raise_if_empty,
             parse_options.truncate_ragged_lines,
             parse_options.decimal_comma,
+            parse_options.thousand,
         )
     }
 

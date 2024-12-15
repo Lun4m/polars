@@ -485,6 +485,7 @@ where
     }
 }
 
+// TODO: this for sure
 pub fn init_buffers(
     projection: &[usize],
     capacity: usize,
@@ -492,6 +493,7 @@ pub fn init_buffers(
     quote_char: Option<u8>,
     encoding: CsvEncoding,
     decimal_comma: bool,
+    thousand: Option<u8>,
 ) -> PolarsResult<Vec<Buffer>> {
     projection
         .iter()

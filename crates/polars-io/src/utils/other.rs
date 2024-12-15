@@ -192,6 +192,8 @@ pub fn overwrite_schema(schema: &mut Schema, overwriting_schema: &Schema) -> Pol
     Ok(())
 }
 
+// TODO: need to modify these three when thousand separator is provided
+// probably can't use Lazy here
 pub static FLOAT_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^[-+]?((\d*\.\d+)([eE][-+]?\d+)?|inf|NaN|(\d+)[eE][-+]?\d+|\d+\.)$").unwrap()
 });

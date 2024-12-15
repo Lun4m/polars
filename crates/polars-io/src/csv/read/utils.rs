@@ -51,6 +51,7 @@ fn decompress_impl<R: Read>(
     n_rows: Option<usize>,
     separator: u8,
     quote_char: Option<u8>,
+    thousand: Option<u8>,
     eol_char: u8,
 ) -> Option<Vec<u8>> {
     let chunk_size = 4096;
@@ -81,7 +82,7 @@ fn decompress_impl<R: Read>(
                     }
                     // now that we have enough, we compute the number of fields (also takes embedding into account)
                     expected_fields =
-                        SplitFields::new(&out, separator, quote_char, eol_char).count();
+                        SplitFields::new(&out, separator, quote_char, thousand, eol_char).count();
                     break;
                 }
             }
@@ -127,18 +128,40 @@ pub(crate) fn decompress(
     n_rows: Option<usize>,
     separator: u8,
     quote_char: Option<u8>,
+    thousand: Option<u8>,
     eol_char: u8,
 ) -> Option<Vec<u8>> {
     use crate::utils::compression::magic::*;
     if bytes.starts_with(&GZIP) {
         let mut decoder = flate2::read::MultiGzDecoder::new(bytes);
-        decompress_impl(&mut decoder, n_rows, separator, quote_char, eol_char)
+        decompress_impl(
+            &mut decoder,
+            n_rows,
+            separator,
+            quote_char,
+            thousand,
+            eol_char,
+        )
     } else if bytes.starts_with(&ZLIB0) || bytes.starts_with(&ZLIB1) || bytes.starts_with(&ZLIB2) {
         let mut decoder = flate2::read::ZlibDecoder::new(bytes);
-        decompress_impl(&mut decoder, n_rows, separator, quote_char, eol_char)
+        decompress_impl(
+            &mut decoder,
+            n_rows,
+            separator,
+            quote_char,
+            thousand,
+            eol_char,
+        )
     } else if bytes.starts_with(&ZSTD) {
         let mut decoder = zstd::Decoder::new(bytes).ok()?;
-        decompress_impl(&mut decoder, n_rows, separator, quote_char, eol_char)
+        decompress_impl(
+            &mut decoder,
+            n_rows,
+            separator,
+            quote_char,
+            thousand,
+            eol_char,
+        )
     } else {
         None
     }

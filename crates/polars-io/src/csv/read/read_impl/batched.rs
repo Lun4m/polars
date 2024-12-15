@@ -177,6 +177,7 @@ impl<'a> CoreReader<'a> {
             rows_read: 0,
             _cat_lock,
             decimal_comma: self.decimal_comma,
+            thousand: self.thousand,
         })
     }
 }
@@ -207,6 +208,7 @@ pub struct BatchedCsvReader<'a> {
     #[cfg(not(feature = "dtype-categorical"))]
     _cat_lock: Option<u8>,
     decimal_comma: bool,
+    thousand: Option<u8>,
 }
 
 impl<'a> BatchedCsvReader<'a> {
@@ -253,6 +255,7 @@ impl<'a> BatchedCsvReader<'a> {
                         stop_at_nbytes,
                         self.starting_point_offset,
                         self.decimal_comma,
+                        self.thousand,
                     )?;
 
                     cast_columns(&mut df, &self.to_cast, false, self.ignore_errors)?;

@@ -47,6 +47,7 @@ impl SchemaInferenceResult {
         let raise_if_empty = options.raise_if_empty;
         let mut n_threads = options.n_threads;
         let decimal_comma = parse_options.decimal_comma;
+        let thousand = parse_options.thousand;
 
         let bytes_total = reader_bytes.len();
 
@@ -66,6 +67,7 @@ impl SchemaInferenceResult {
             raise_if_empty,
             &mut n_threads,
             decimal_comma,
+            thousand,
         )?;
 
         let this = Self {
@@ -117,7 +119,17 @@ pub fn finish_infer_field_schema(possibilities: &PlHashSet<DataType>) -> DataTyp
 }
 
 /// Infer the data type of a record
-pub fn infer_field_schema(string: &str, try_parse_dates: bool, decimal_comma: bool) -> DataType {
+pub fn infer_field_schema(
+    string: &str,
+    try_parse_dates: bool,
+    decimal_comma: bool,
+    thousand: Option<u8>,
+) -> DataType {
+    // let replaced_string = match thousand {
+    // None => string,
+    // Some(sep) => string.strip_prefix(sep, "").as_str(),
+    // };
+
     // when quoting is enabled in the reader, these quotes aren't escaped, we default to
     // String for them
     if string.starts_with('"') {
@@ -149,12 +161,18 @@ pub fn infer_field_schema(string: &str, try_parse_dates: bool, decimal_comma: bo
     // match regex in a particular order
     else if BOOLEAN_RE.is_match(string) {
         DataType::Boolean
-    } else if !decimal_comma && FLOAT_RE.is_match(string)
-        || decimal_comma && FLOAT_RE_DECIMAL.is_match(string)
-    {
-        DataType::Float64
-    } else if INTEGER_RE.is_match(string) {
-        DataType::Int64
+    // else if thou
+    // TODO: add thousand separator?
+    // } else match thousand {
+    //     None => {
+    //         if !decimal_comma && FLOAT_RE.is_match(string)
+    //         || decimal_comma && FLOAT_RE_DECIMAL.is_match(string) { return DataType::Float64 }
+    //         if INTEGER_RE.is_match(string) {
+    //             return DataType::Int64
+    //         }
+    //     },
+    //     Some(sep) => DataType::Float64
+    //
     } else if try_parse_dates {
         #[cfg(feature = "polars-time")]
         {
@@ -211,6 +229,7 @@ fn infer_file_schema_inner(
     raise_if_empty: bool,
     n_threads: &mut Option<usize>,
     decimal_comma: bool,
+    thousand: Option<u8>,
 ) -> PolarsResult<(Schema, usize, usize)> {
     // keep track so that we can determine the amount of bytes read
     let start_ptr = reader_bytes.as_ptr() as usize;
@@ -312,6 +331,7 @@ fn infer_file_schema_inner(
             raise_if_empty,
             n_threads,
             decimal_comma,
+            thousand,
         );
     } else if !raise_if_empty {
         return Ok((Schema::new(), 0, 0));
@@ -336,6 +356,7 @@ fn infer_file_schema_inner(
     // needed to prevent ownership going into the iterator loop
     let records_ref = &mut lines;
 
+    // TODO: here!
     let mut end_ptr = start_ptr;
     for mut line in records_ref
         .take(match max_read_rows {
@@ -375,6 +396,7 @@ fn infer_file_schema_inner(
             }
         }
 
+        // TODO: here or?
         let mut record = SplitFields::new(line, separator, quote_char, eol_char);
 
         for i in 0..header_length {
@@ -389,6 +411,7 @@ fn infer_file_schema_inner(
                     };
                     let s = parse_bytes_with_encoding(slice_escaped, encoding)?;
                     let dtype = match &null_values {
+                        // TODO: or here?
                         None => Some(infer_field_schema(&s, try_parse_dates, decimal_comma)),
                         Some(NullValues::AllColumns(names)) => {
                             if !names.iter().any(|nv| nv == s.as_ref()) {
@@ -497,6 +520,7 @@ fn infer_file_schema_inner(
             raise_if_empty,
             n_threads,
             decimal_comma,
+            thousand,
         );
     }
 
@@ -506,6 +530,15 @@ fn infer_file_schema_inner(
 pub(super) fn check_decimal_comma(decimal_comma: bool, separator: u8) -> PolarsResult<()> {
     if decimal_comma {
         polars_ensure!(b',' != separator, InvalidOperation: "'decimal_comma' argument cannot be combined with ',' separator")
+    }
+    Ok(())
+}
+
+pub(super) fn check_thousand_separator(thousand: Option<u8>, separator: u8) -> PolarsResult<()> {
+    if let Some(t_sep) = thousand {
+        polars_ensure!(t_sep.is_ascii_punctuation(), InvalidOperation: "'thousand' argument can only be a punctuation character");
+        polars_ensure!(t_sep != b'-' || t_sep != b'+', InvalidOperation: "'thousand' argument cannot be equal to '-' or '+'");
+        polars_ensure!(t_sep != separator, InvalidOperation: "'thousand' argument cannot be the same as 'separator'");
     }
     Ok(())
 }
@@ -538,8 +571,10 @@ pub fn infer_file_schema(
     raise_if_empty: bool,
     n_threads: &mut Option<usize>,
     decimal_comma: bool,
+    thousand: Option<u8>,
 ) -> PolarsResult<(Schema, usize, usize)> {
     check_decimal_comma(decimal_comma, separator)?;
+    check_thousand_separator(thousand, separator)?;
     infer_file_schema_inner(
         reader_bytes,
         separator,
@@ -557,5 +592,6 @@ pub fn infer_file_schema(
         raise_if_empty,
         n_threads,
         decimal_comma,
+        thousand,
     )
 }

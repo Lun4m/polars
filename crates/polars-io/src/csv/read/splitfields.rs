@@ -145,6 +145,7 @@ mod inner {
     const SIMD_SIZE: usize = 16;
     type SimdVec = u8x16;
 
+    // TODO: maybe you pass thousand here instead?
     /// An adapted version of std::iter::Split.
     /// This exists solely because we cannot split the lines naively as
     pub(crate) struct SplitFields<'a> {
@@ -153,6 +154,7 @@ mod inner {
         pub finished: bool,
         quote_char: u8,
         quoting: bool,
+        thousand: u8,
         eol_char: u8,
         simd_separator: SimdVec,
         simd_eol_char: SimdVec,
@@ -163,6 +165,7 @@ mod inner {
             slice: &'a [u8],
             separator: u8,
             quote_char: Option<u8>,
+            thousand: Option<u8>,
             eol_char: u8,
         ) -> Self {
             let simd_separator = SimdVec::splat(separator);
@@ -174,6 +177,8 @@ mod inner {
                 finished: false,
                 quote_char: quote_char.unwrap_or(b'"'),
                 quoting: quote_char.is_some(),
+                // TODO: should be kept as option?
+                thousand: thousand.unwrap_or(b' '),
                 eol_char,
                 simd_separator,
                 simd_eol_char,
@@ -322,18 +327,26 @@ mod test {
     #[test]
     fn test_splitfields() {
         let input = "\"foo\",\"bar\"";
-        let mut fields = SplitFields::new(input.as_bytes(), b',', Some(b'"'), b'\n');
+        let mut fields = SplitFields::new(input.as_bytes(), b',', Some(b'"'), None, b'\n');
 
         assert_eq!(fields.next(), Some(("\"foo\"".as_bytes(), true)));
         assert_eq!(fields.next(), Some(("\"bar\"".as_bytes(), true)));
         assert_eq!(fields.next(), None);
 
         let input2 = "\"foo\n bar\";\"baz\";12345";
-        let mut fields2 = SplitFields::new(input2.as_bytes(), b';', Some(b'"'), b'\n');
+        let mut fields2 = SplitFields::new(input2.as_bytes(), b';', Some(b'"'), None, b'\n');
 
         assert_eq!(fields2.next(), Some(("\"foo\n bar\"".as_bytes(), true)));
         assert_eq!(fields2.next(), Some(("\"baz\"".as_bytes(), true)));
         assert_eq!(fields2.next(), Some(("12345".as_bytes(), false)));
         assert_eq!(fields2.next(), None);
+
+        let input3 = "\"foo\n bar\";\"baz\";12.345";
+        let mut fields3 = SplitFields::new(input3.as_bytes(), b';', Some(b'"'), Some(b'.'), b'\n');
+
+        assert_eq!(fields3.next(), Some(("\"foo\n bar\"".as_bytes(), true)));
+        assert_eq!(fields3.next(), Some(("\"baz\"".as_bytes(), true)));
+        assert_eq!(fields3.next(), Some(("12345".as_bytes(), false)));
+        assert_eq!(fields3.next(), None);
     }
 }

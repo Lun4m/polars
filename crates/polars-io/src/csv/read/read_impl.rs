@@ -17,7 +17,7 @@ use super::parser::{
     get_line_stats, is_comment_line, next_line_position, next_line_position_naive, parse_lines,
     skip_bom, skip_line_ending, skip_this_line,
 };
-use super::schema_inference::{check_decimal_comma, infer_file_schema};
+use super::schema_inference::{check_decimal_comma, check_thousand_separator, infer_file_schema};
 #[cfg(any(feature = "decompress", feature = "decompress-fast"))]
 use super::utils::decompress;
 use super::utils::get_file_chunks;
@@ -117,6 +117,7 @@ pub(crate) struct CoreReader<'a> {
     chunk_size: usize,
     low_memory: bool,
     decimal_comma: bool,
+    thousand: Option<u8>,
     comment_prefix: Option<CommentPrefix>,
     quote_char: Option<u8>,
     eol_char: u8,
@@ -171,10 +172,13 @@ impl<'a> CoreReader<'a> {
         raise_if_empty: bool,
         truncate_ragged_lines: bool,
         decimal_comma: bool,
+        thousand: Option<u8>,
     ) -> PolarsResult<CoreReader<'a>> {
         let separator = separator.unwrap_or(b',');
 
         check_decimal_comma(decimal_comma, separator)?;
+        check_thousand_separator(thousand, separator)?;
+
         #[cfg(any(feature = "decompress", feature = "decompress-fast"))]
         let mut reader_bytes = reader_bytes;
 
@@ -192,9 +196,14 @@ impl<'a> CoreReader<'a> {
         {
             let total_n_rows =
                 n_rows.map(|n| skip_rows + (has_header as usize) + skip_rows_after_header + n);
-            if let Some(b) =
-                decompress(&reader_bytes, total_n_rows, separator, quote_char, eol_char)
-            {
+            if let Some(b) = decompress(
+                &reader_bytes,
+                total_n_rows,
+                separator,
+                quote_char,
+                thousand,
+                eol_char,
+            ) {
                 reader_bytes = ReaderBytes::Owned(b);
             }
         }
@@ -218,6 +227,7 @@ impl<'a> CoreReader<'a> {
                     raise_if_empty,
                     &mut n_threads,
                     decimal_comma,
+                    thousand,
                 )?;
                 Arc::new(inferred_schema)
             },
@@ -267,6 +277,7 @@ impl<'a> CoreReader<'a> {
             row_index,
             truncate_ragged_lines,
             decimal_comma,
+            thousand,
         })
     }
 
@@ -720,6 +731,7 @@ fn read_chunk(
     stop_at_nbytes: usize,
     starting_point_offset: Option<usize>,
     decimal_comma: bool,
+    thousand: Option<u8>,
 ) -> PolarsResult<DataFrame> {
     let mut read = bytes_offset_thread;
     // There's an off-by-one error somewhere in the reading code, where it reads
@@ -734,6 +746,7 @@ fn read_chunk(
         quote_char,
         encoding,
         decimal_comma,
+        thousand,
     )?;
 
     let mut last_read = usize::MAX;
@@ -752,6 +765,7 @@ fn read_chunk(
             comment_prefix,
             quote_char,
             eol_char,
+            thousand,
             missing_is_null,
             ignore_errors,
             truncate_ragged_lines,

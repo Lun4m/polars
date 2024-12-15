@@ -438,6 +438,7 @@ pub(super) fn parse_lines(
     comment_prefix: Option<&CommentPrefix>,
     quote_char: Option<u8>,
     eol_char: u8,
+    thousand: Option<u8>,
     missing_is_null: bool,
     ignore_errors: bool,
     mut truncate_ragged_lines: bool,

@@ -53,6 +53,7 @@ pub struct CsvParseOptions {
     pub comment_prefix: Option<CommentPrefix>,
     pub try_parse_dates: bool,
     pub decimal_comma: bool,
+    pub thousand: Option<u8>,
 }
 
 impl Default for CsvReadOptions {
@@ -101,6 +102,7 @@ impl Default for CsvParseOptions {
             comment_prefix: None,
             try_parse_dates: false,
             decimal_comma: false,
+            thousand: None,
         }
     }
 }
